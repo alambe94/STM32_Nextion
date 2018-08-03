@@ -29,17 +29,22 @@
 #define NEX_RET_INVALID_VARIABLE        (0x1A)
 #define NEX_RET_INVALID_OPERATION       (0x1B)
 
-/**
- * Push touch event occuring when your finger or pen coming to Nextion touch pannel.
- */
 #define NEX_EVENT_PUSH  (0x01)
-
-/**
- * Pop touch event occuring when your finger or pen leaving from Nextion touch pannel.
- */
 #define NEX_EVENT_POP   (0x00)
 
+static Nextion_Object_t* Nextion_Object_PTR_Array[MAX_NEXTION_OBJECTS];
+
+static uint16_t Nextion_Object_Count = 0;
+
+void Nextion_Add_Object(Nextion_Object_t* PTR) {
+
+	Nextion_Object_PTR_Array[Nextion_Object_Count] = PTR;
+	Nextion_Object_Count++;
+
+}
+
 uint8_t Nextion_Init() {
+
 	uint8_t ret1 = NEXTION_ERR;
 	uint8_t ret2 = NEXTION_ERR;
 
@@ -92,8 +97,8 @@ uint8_t Nextion_Command_Finished() {
 
 	uint8_t temp[4] = { 0 };
 
-	while (Ring_Buffer_Get_Count() < 4 && --timeout)
-		;
+	while (Ring_Buffer_Get_Count() < 4 && --timeout) {
+	}
 
 	if (timeout > 0) {
 		for (uint8_t i = 0; i < 4; i++) {
@@ -133,8 +138,8 @@ uint8_t Nextion_Receive_Number(uint32_t *number, uint32_t timeout) {
 		goto __return;
 	}
 
-	while (Ring_Buffer_Get_Count() < 8 && --timeout)
-		;
+	while (Ring_Buffer_Get_Count() < 8 && --timeout) {
+	}
 
 	if (timeout > 0) {
 
@@ -226,19 +231,6 @@ uint16_t Nextion_Receive_String(char *buffer, uint16_t len, uint32_t timeout) {
 	return ret;
 }
 
-static Nextion_Object_t *Nextion_Object_PTR_Array[MAX_NEXTION_OBJECTS];
-
-static uint16_t Nextion_Object_Count = 0;
-
-void Nextion_Add_Object(Nextion_Object_t* PTR) {
-
-	Nextion_Object_PTR_Array[Nextion_Object_Count] = PTR;
-	Nextion_Object_Count++;
-
-}
-
-
-
 void Nextion_Find_Object(uint8_t pid, uint8_t cid, uint8_t event) {
 	Nextion_Object_t *e = NULL;
 
@@ -262,7 +254,6 @@ void Nextion_Find_Object(uint8_t pid, uint8_t cid, uint8_t event) {
 		}
 	}
 }
-
 
 void Nextion_Loop() {
 
@@ -420,8 +411,8 @@ uint32_t Nextion_Get_Current_Page() {
 
 	HAL_UART_Transmit(&huart1, (uint8_t*) &buf, strlen(buf), 50);
 
-	while (Ring_Buffer_Get_Count() < 5 && --timeout)
-		;
+	while (Ring_Buffer_Get_Count() < 5 && --timeout) {
+	}
 
 	if (timeout > 0) {
 
