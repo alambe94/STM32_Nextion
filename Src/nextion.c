@@ -32,6 +32,9 @@
 #define NEX_EVENT_PUSH  (0x01)
 #define NEX_EVENT_POP   (0x00)
 
+#define false       (0)
+#define true        (1)
+
 static Nextion_Object_t* Nextion_Object_PTR_Array[MAX_NEXTION_OBJECTS];
 
 static uint16_t Nextion_Object_Count = 0;
@@ -72,8 +75,6 @@ void Nextion_Send_Command(const char* cmd) {
 
 	char buf[30] = { 0 };
 	char sps = 0xFF;
-
-	Ring_Buffer_Flush();
 
 	sprintf(buf, "%s%c%c%c", cmd, sps, sps, sps);
 
@@ -135,7 +136,7 @@ uint8_t Nextion_Receive_Number(uint32_t *number, uint32_t timeout) {
 	uint8_t temp[8] = { 0 };
 
 	if (!number) {
-		goto __return;
+		return ret;
 	}
 
 	while (Ring_Buffer_Get_Count() < 8 && --timeout) {
@@ -154,15 +155,6 @@ uint8_t Nextion_Receive_Number(uint32_t *number, uint32_t timeout) {
 
 			ret = NEXTION_OK;
 		}
-	}
-
-	__return:
-
-	if (ret == NEXTION_OK) {
-		//dbSerialPrint("recvRetNumber :");
-		//dbSerialPrintln(*number);
-	} else {
-		//dbSerialPrintln("recvRetNumber err");
 	}
 
 	return ret;
@@ -255,6 +247,15 @@ void Nextion_Find_Object(uint8_t pid, uint8_t cid, uint8_t event) {
 	}
 }
 
+/*********** called when Nextion send page id ***********
+ *
+ *
+ *  defined externally
+ */
+extern void Nextion_Received_Page_ID(uint8_t Page_ID);
+extern void Nextion_Received_String();
+extern void Nextion_Received_Number(uint32_t Number);
+
 void Nextion_Loop() {
 
 	static uint32_t Nextion_Loop_Time_Stamp = 0;
@@ -296,6 +297,63 @@ void Nextion_Loop() {
 
 				}
 			}
+
+			if (NEX_RET_CURRENT_PAGE_ID_HEAD == c) {
+				if (Ring_Buffer_Get_Count() >= 4) {
+
+					for (uint8_t i = 1; i < 5; i++) {
+						__buffer[i] = Ring_Buffer_Get_Char();
+					}
+
+					if (__buffer[2] == 0xFF && __buffer[3] == 0xFF
+							&& __buffer[4] == 0xFF) {
+
+						Nextion_Received_Page_ID(__buffer[1]);
+					}
+
+				}
+			}
+
+			if (NEX_RET_STRING_HEAD == c) {
+				uint8_t cnt_0xff = 0;
+				uint8_t i = 0;
+				while (Ring_Buffer_Get_Count() > 0) {
+					c = Ring_Buffer_Get_Char();
+					if (0xFF == c) {
+						cnt_0xff++;
+						if (cnt_0xff >= 3) {
+							break;
+						}
+					} else {
+						Nextion_Received_Array[i] = c;
+						i++;
+						if (i == NEXTION_RECEIVED_STRING_SIZE-1) {
+							break;
+						}
+					}
+				}
+				Nextion_Received_Array[i]='\0';
+				Nextion_Received_String();
+			}
+
+			if (NEX_RET_NUMBER_HEAD == c) {
+
+				uint32_t number = 0;
+				for (uint8_t i = 1; i < 8; i++) {
+					__buffer[i] = Ring_Buffer_Get_Char();
+				}
+
+				if (__buffer[5] == 0xFF && __buffer[6] == 0xFF
+						&& __buffer[7] == 0xFF) {
+					number = ((uint32_t) __buffer[4] << 24)
+							| ((uint32_t) __buffer[3] << 16)
+							| (__buffer[2] << 8) | (__buffer[1]);
+
+					Nextion_Received_Number(number);
+				}
+
+			}
+
 		}
 	}
 
@@ -391,44 +449,6 @@ void Nextion_Hide_Object(char *object_name, uint8_t hide) {
 	HAL_UART_Transmit(&huart1, (uint8_t*) &buf, strlen(buf), 50);
 }
 
-/*********************
- * get current page
- *
- *
- */
-
-uint32_t Nextion_Get_Current_Page() {
-
-	uint32_t timeout = 0xFFFF;
-
-	char buf[10] = { 0 };
-
-	char sps = 0xFF;
-
-	uint32_t temp = 0xFFFF;
-
-	sprintf(buf, "sendme%c%c%c", sps, sps, sps);
-
-	HAL_UART_Transmit(&huart1, (uint8_t*) &buf, strlen(buf), 50);
-
-	while (Ring_Buffer_Get_Count() < 5 && --timeout) {
-	}
-
-	if (timeout > 0) {
-
-		for (uint8_t i = 0; i < 5; i++) {
-			buf[i] = Ring_Buffer_Get_Char();
-		}
-
-		if (buf[0] == NEX_RET_CURRENT_PAGE_ID_HEAD && buf[2] == 0xFF
-				&& buf[3] == 0xFF && buf[4] == 0xFF) {
-			temp = buf[1];
-
-		}
-	}
-
-	return temp;
-}
 
 /*********************
  * set brightness
@@ -456,18 +476,51 @@ void Nextion_Backlight_Brightness(uint8_t value, uint8_t overide) {
  * override -> true   save changes permanently
  * overide -> false   reset to default after power cycle
  */
-void Nextion_Baud_Rate(uint16_t baud, uint8_t overide) {
+void Nextion_Baud_Rate(uint32_t baud, uint8_t overide) {
 
 	char buf[10] = { 0 };
 
 	char sps = 0xFF;
 
 	if (overide > 0) {
-		sprintf(buf, "bauds=%i%c%c%c", baud, sps, sps, sps);
+		sprintf(buf, "bauds=%i%c%c%c", (int) baud, sps, sps, sps);
 	} else {
-		sprintf(buf, "baud=%i%c%c%c", baud, sps, sps, sps);
+		sprintf(buf, "baud=%i%c%c%c", (int) baud, sps, sps, sps);
 	}
 
 	HAL_UART_Transmit(&huart1, (uint8_t*) &buf, strlen(buf), 50);
 }
 
+
+
+void Nextion_Get_Text(char *object_name)
+{
+
+	char sps = 0xFF;
+	char buf[20] = { 0 };
+
+	sprintf(buf, "get %s.txt%c%c%c", object_name,sps, sps, sps);
+
+	HAL_UART_Transmit(&huart1, (uint8_t*) &buf, strlen(buf), 50);
+}
+
+
+
+/*********************
+ * get current page
+ *
+ *
+ */
+
+uint8_t Nextion_Get_Current_Page() {
+
+	char buf[10] = { 0 };
+
+	char sps = 0xFF;
+
+	sprintf(buf, "sendme%c%c%c", sps, sps, sps);
+
+	HAL_UART_Transmit(&huart1, (uint8_t*) &buf, strlen(buf), 50);
+
+	return 0;
+}

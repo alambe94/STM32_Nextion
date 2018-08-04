@@ -49,6 +49,9 @@
 /* USER CODE END Includes */
 
 /* Private variables ---------------------------------------------------------*/
+#define false       (0)
+#define true        (1)
+
 
 uint8_t Page_0_Touch_Count = 0;
 uint8_t Current_Page = 0;
@@ -126,6 +129,19 @@ void Page_1_Released() {
 	}
 
 	Nextion_Backlight_Brightness(80, false);
+}
+
+
+void Nextion_Received_Page_ID(uint8_t Page_ID) {
+
+}
+
+void Nextion_Received_String() {
+
+}
+
+void Nextion_Received_Number(uint32_t Number) {
+
 }
 
 /* USER CODE END 0 */
