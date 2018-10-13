@@ -17,18 +17,18 @@
 
 #include "ring_buffer.h"
 
-#define BUFFER_SIZE       128  /* must be power of two */
+#define BUFFER_SIZE       64  /* must be power of two */
 
 static uint8_t RX_DMA_Buffer[BUFFER_SIZE]={0};
 static UART_HandleTypeDef *huart;
 static uint32_t Read_PTR;
 
-#define WRITE_PTR ( BUFFER_SIZE - (huart->hdmarx->Instance->CNDTR))
+#define WRITE_PTR ( BUFFER_SIZE - (huart->hdmarx->Instance->NDTR))
 
 void Ring_Buffer_Init(UART_HandleTypeDef *_huart)
 {
 	huart = _huart;
-	huart->hdmarx->Instance->CNDTR = 0;
+	huart->hdmarx->Instance->NDTR = 0;
 	Read_PTR = 0;
 	HAL_UART_Receive_DMA(huart, RX_DMA_Buffer, BUFFER_SIZE);
 
@@ -75,5 +75,33 @@ void Ring_Buffer_Flush()
 {
 	Read_PTR = WRITE_PTR;
 }
+
+
+
+
+
+static uint32_t Check_PTR;
+
+uint8_t Ring_Buffer_Check_Char(void)
+{
+	if (WRITE_PTR == Check_PTR)
+	{
+		return 0x00;
+	}
+	else
+	{
+		uint8_t data = RX_DMA_Buffer[Check_PTR];
+
+		Check_PTR++;
+
+		if (Check_PTR == BUFFER_SIZE)
+		{
+		    Check_PTR = 0;
+		}
+
+		return data;
+	}
+}
+
 
 
