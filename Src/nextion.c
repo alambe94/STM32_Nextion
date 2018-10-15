@@ -103,7 +103,7 @@ uint8_t Nextion_Command_Finished() {
 
 	if (timeout > 0) {
 		for (uint8_t i = 0; i < 4; i++) {
-			temp[i] = Ring_Buffer_Get_Char();
+		    Ring_Buffer_Get_Char(&temp[i]);
 		}
 
 		if (temp[0] == NEX_RET_CMD_FINISHED && temp[1] == 0xFF
@@ -145,7 +145,7 @@ uint8_t Nextion_Receive_Number(uint32_t *number, uint32_t timeout) {
 	if (timeout > 0) {
 
 		for (uint8_t i = 0; i < 8; i++) {
-			temp[i] = Ring_Buffer_Get_Char();
+		    Ring_Buffer_Get_Char(&temp[i]);
 		}
 
 		if (temp[0] == NEX_RET_NUMBER_HEAD && temp[5] == 0xFF && temp[6] == 0xFF
@@ -186,7 +186,7 @@ uint16_t Nextion_Receive_String(char *buffer, uint16_t len, uint32_t timeout) {
 
 	while (HAL_GetTick() - start <= timeout) {
 		while (Ring_Buffer_Get_Count() > 0) {
-			c = Ring_Buffer_Get_Char();
+			Ring_Buffer_Get_Char(&c);
 			if (str_start_flag) {
 				if (0xFF == c) {
 					cnt_0xff++;
@@ -279,13 +279,13 @@ void Nextion_Loop() {
 
 		while (Ring_Buffer_Get_Count() > 0) {
 			//HAL_Delay(10);
-			c = Ring_Buffer_Get_Char();
+			Ring_Buffer_Get_Char(&c);
 
 			if (NEX_RET_EVENT_TOUCH_HEAD == c) {
 				if (Ring_Buffer_Get_Count() >= 6) {
 					__buffer[0] = c;
 					for (i = 1; i < 7; i++) {
-						__buffer[i] = Ring_Buffer_Get_Char();
+					Ring_Buffer_Get_Char(&__buffer[i]);
 					}
 					__buffer[i] = 0x00;
 
@@ -302,7 +302,7 @@ void Nextion_Loop() {
 				if (Ring_Buffer_Get_Count() >= 4) {
 
 					for (uint8_t i = 1; i < 5; i++) {
-						__buffer[i] = Ring_Buffer_Get_Char();
+					    Ring_Buffer_Get_Char(&__buffer[i]);
 					}
 
 					if (__buffer[2] == 0xFF && __buffer[3] == 0xFF
@@ -318,7 +318,7 @@ void Nextion_Loop() {
 				uint8_t cnt_0xff = 0;
 				uint8_t i = 0;
 				while (Ring_Buffer_Get_Count() > 0) {
-					c = Ring_Buffer_Get_Char();
+					Ring_Buffer_Get_Char(&c);
 					if (0xFF == c) {
 						cnt_0xff++;
 						if (cnt_0xff >= 3) {
@@ -340,7 +340,7 @@ void Nextion_Loop() {
 
 				uint32_t number = 0;
 				for (uint8_t i = 1; i < 8; i++) {
-					__buffer[i] = Ring_Buffer_Get_Char();
+					Ring_Buffer_Get_Char(&__buffer[i]);
 				}
 
 				if (__buffer[5] == 0xFF && __buffer[6] == 0xFF
