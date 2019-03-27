@@ -132,15 +132,15 @@ void Page_1_Released() {
 }
 
 
-void Nextion_Received_Page_ID(uint8_t Page_ID) {
+void Nextion_RX_Page_ID_Callback(uint8_t Page_ID) {
 
 }
 
-void Nextion_Received_String() {
+void Nextion_RX_String_Callback(const char* str) {
 
 }
 
-void Nextion_Received_Number(uint32_t Number) {
+void Nextion_RX_Number_Callback(uint32_t Number) {
 
 }
 
@@ -182,31 +182,31 @@ int main(void) {
 
 	Nextion_Object_t Page_0_Object;
 
-	Page_0_Object.Push_Callback_PTR = &Page_0_Touched;
-	Page_0_Object.Pop_Callback_PTR = &Page_0_Released;
-	Page_0_Object.component_id = 0;
-	Page_0_Object.page_id = 0;
-	Page_0_Object.name = "page 0";
+	Page_0_Object.Push_Callback = &Page_0_Touched;
+	Page_0_Object.Pop_Callback = &Page_0_Released;
+	Page_0_Object.Component_ID = 0;
+	Page_0_Object.Page_ID = 0;
+	Page_0_Object.Name = "page 0";
 
 	Nextion_Add_Object(&Page_0_Object);
 
 	Nextion_Object_t Page_1_Object;
 
-	Page_1_Object.Push_Callback_PTR = &Page_1_Touched;
-	Page_1_Object.Pop_Callback_PTR = &Page_1_Released;
-	Page_1_Object.component_id = 0;
-	Page_1_Object.page_id = 1;
-	Page_1_Object.name = "page 1";
+	Page_1_Object.Push_Callback = &Page_1_Touched;
+	Page_1_Object.Pop_Callback = &Page_1_Released;
+	Page_1_Object.Component_ID = 0;
+	Page_1_Object.Page_ID = 1;
+	Page_1_Object.Name = "page 1";
 
 	Nextion_Add_Object(&Page_1_Object);
 
 	Nextion_Object_t BTN_Setting;
 
-	BTN_Setting.Push_Callback_PTR = NULL;
-	BTN_Setting.Pop_Callback_PTR = &BTN_Setting_Released;
-	BTN_Setting.component_id = 6;
-	BTN_Setting.page_id = 0;
-	BTN_Setting.name = "b0";
+	BTN_Setting.Push_Callback = NULL;
+	BTN_Setting.Pop_Callback = &BTN_Setting_Released;
+	BTN_Setting.Component_ID = 6;
+	BTN_Setting.Page_ID = 0;
+	BTN_Setting.Name = "b0";
 
 	Nextion_Add_Object(&BTN_Setting);
 

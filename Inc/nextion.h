@@ -15,27 +15,23 @@
 #define NEXTION_OK  1
 #define NEXTION_ERR 0
 
-#define  NEXTION_RECEIVED_STRING_SIZE 20
-
-uint8_t Nextion_Received_Array[NEXTION_RECEIVED_STRING_SIZE];
-
 typedef struct Nextion_Object_t
 {
-	uint8_t page_id;
-	uint8_t component_id;
-	char *name;
+	uint8_t Page_ID;
+	uint8_t Component_ID;
+	char*   Name;
 
-	void (*Push_Callback_PTR)(); //callback function ptr
-	void (*Pop_Callback_PTR)();  //callback function ptr
+	void (*Push_Callback)(); //callback function ptr
+	void (*Pop_Callback)();  //callback function ptr
 
 } Nextion_Object_t;
 
 extern UART_HandleTypeDef huart1;
 
 uint8_t Nextion_Init();
-void Nextion_Add_Object(Nextion_Object_t* PTR);
-void Nextion_Send_Command(const char* cmd);
-uint8_t Nextion_Command_Finished();
+uint8_t Nextion_Add_Object(Nextion_Object_t* PTR);
+void    Nextion_Send_Command(const char* cmd);
+uint8_t Nextion_Command_Finished(uint32_t timeout);
 uint8_t Nextion_Get_Current_Page();
 
 
