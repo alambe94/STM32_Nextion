@@ -43,10 +43,8 @@ static uint16_t Nextion_Object_Count = 0;
 #define  NEXTION_IN_BUFF_SIZE 20
 char     Nextion_In_Buffer[NEXTION_IN_BUFF_SIZE];
 
-uint8_t  Command_Finished_Flag = 0;
-uint8_t  RX_Number_Flag = 0;
-uint32_t RX_Number = 0;
-uint8_t  RX_String_Flag = 0;
+uint8_t  Touch_EVNT_Flag = 0;
+uint8_t  CMD_Finished_Flag = 0;
 
 
 
@@ -64,8 +62,8 @@ uint8_t Nextion_Add_Object(Nextion_Object_t* PTR)
 uint8_t Nextion_Init()
     {
 
-    uint8_t ret1 = NEXTION_ERR;
-    uint8_t ret2 = NEXTION_ERR;
+    uint32_t timeout = 0xFFFF;
+
 
     /*Init Serial Port */
 
@@ -73,13 +71,31 @@ uint8_t Nextion_Init()
 
     Ring_Buffer_Init(&huart1);
 
-    Nextion_Send_Command("");
+    __HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE);
 
+    Nextion_Send_Command("");
+    HAL_Delay(1);
+    CMD_Finished_Flag = 0;
     Nextion_Send_Command("bkcmd=1");
-    ret1 = Nextion_Command_Finished(0xFFFF);
+    while (!CMD_Finished_Flag && --timeout)
+	{
+	}
+    if(!timeout)
+	{
+	return NEXTION_ERR;
+	}
+
+
+    CMD_Finished_Flag = 0;
     Nextion_Send_Command("page 0");
-    ret2 = Nextion_Command_Finished(0xFFFF);
-    return (ret1 && ret2) ? NEXTION_OK : NEXTION_ERR;
+    while (!CMD_Finished_Flag && --timeout)
+	{
+	}
+    if(!timeout)
+	{
+	return NEXTION_ERR;
+	}
+    return NEXTION_OK;
     }
 
 /*
@@ -101,83 +117,6 @@ void Nextion_Send_Command(const char* cmd)
     HAL_UART_Transmit(&huart1, (uint8_t*) &buf, strlen(buf), 50);
 
     }
-
-/*
- * Command is executed successfully.
- *
- * @param timeout - set timeout time.
- *
- * @retval true - success.
- * @retval false - failed.
- *
- */
-uint8_t Nextion_Command_Finished(uint32_t timeout)
-    {
-
-    while (!Command_Finished_Flag && --timeout)
-	{
-	}
-
-    if (timeout)
-	{
-	Command_Finished_Flag = 0;
-	return NEXTION_OK;
-	}
-
-    return NEXTION_ERR;
-    }
-
-/*
- * Receive uint32_t data.
- *
- * @param number - save uint32_t data.
- * @param timeout - set timeout time.
- *
- * @retval true - success.
- * @retval false - failed.
- *
- */
-uint8_t Nextion_Receive_Number(uint32_t *number, uint32_t timeout)
-    {
-
-    while (!RX_Number_Flag && --timeout)
-	{
-	}
-
-    if (timeout)
-	{
-	RX_Number_Flag = 0;
-	*number = RX_Number;
-	return NEXTION_OK;
-	}
-
-    return NEXTION_ERR;
-    }
-
-/*
- * Receive string data.
- *
- * @param buffer - save string data.
- * @param len - string buffer length.
- * @param timeout - set timeout time.
- *
- * @return the length of string buffer.
- *
- */
-uint16_t Nextion_Receive_String(char *buffer, uint16_t len, uint32_t timeout)
-    {
-    while (!RX_String_Flag && --timeout)
-	{
-	}
-    if(timeout)
-	{
-	RX_String_Flag = 0;
-	strncpy(buffer, &Nextion_In_Buffer[1], len);
-	return NEXTION_OK;
-	}
-    return NEXTION_ERR;
-    }
-
 
 void Nextion_Find_Object(uint8_t pid, uint8_t cid, uint8_t event)
     {
@@ -219,7 +158,6 @@ void Nextion_Find_Object(uint8_t pid, uint8_t cid, uint8_t event)
  */
 extern void Nextion_RX_Page_ID_Callback(uint8_t Page_ID);
 
-
 /*********** called when Nextion send string ***********
  *
  *
@@ -234,81 +172,112 @@ extern void Nextion_RX_String_Callback(const char* str);
  */
 extern void Nextion_RX_Number_Callback(uint32_t Number);
 
-void Nextion_Loop()
+/*********** called when Command Exe is finished ***********
+ *
+ *
+ *  defined externally
+ */
+extern void Nextion_CMD_Finished_Callback();
+
+
+
+void Nextion_UART_RX_ISR()
     {
 
-    static uint8_t rx_char_count = 0;;
+    static uint8_t rx_char_count = 0;
     uint8_t rx_char = 0;
     uint8_t data_received = 0;
+    uint8_t rx_number = 0;
 
-    while (Ring_Buffer_Get_Count())
+    if (__HAL_UART_GET_IT_SOURCE(&huart1, UART_IT_IDLE))
 	{
 
-	Ring_Buffer_Get_Char(&rx_char);
+	/*
+	 PE (Parity error), FE (Framing error), NE (Noise error), ORE (Overrun
+	 error) and IDLE (Idle line detected) flags are cleared by software
+	 sequence: a read operation to USART_SR register followed by a read
+	 operation to USART_DR register.
+	 */
+	(void) __HAL_UART_GET_FLAG(&huart1, UART_FLAG_IDLE);
+	(void) huart1.Instance->DR;
 
-	if (rx_char == 0xFF)
+
+	while (Ring_Buffer_Get_Count())
 	    {
+
 	    Ring_Buffer_Get_Char(&rx_char);
+
+	    if (rx_char == 0xFF)
 		{
-		if (rx_char == 0xFF)
+		Ring_Buffer_Get_Char(&rx_char);
 		    {
-		    Ring_Buffer_Get_Char(&rx_char);
 		    if (rx_char == 0xFF)
 			{
-			rx_char_count = 0;
-			data_received = 1;
+			Ring_Buffer_Get_Char(&rx_char);
+			if (rx_char == 0xFF)
+			    {
+			    rx_char_count = 0;
+			    data_received = 1;
+			    }
 			}
 		    }
 		}
-	    }
-	else
-	    {
-	    Nextion_In_Buffer[rx_char_count] = rx_char;
-	    rx_char_count++;
-	    }
-
-
-	if (data_received)
-	    {
-
-	    data_received = 0;
-
-	    switch(Nextion_In_Buffer[0])
+	    else
 		{
-	    case NEX_RET_EVENT_TOUCH_HEAD:
-		    Nextion_Find_Object(Nextion_In_Buffer[1],
-			    Nextion_In_Buffer[2],
-			    Nextion_In_Buffer[3]);
-		break;
-
-	    case NEX_RET_CURRENT_PAGE_ID_HEAD:
-		Nextion_RX_Page_ID_Callback(Nextion_In_Buffer[1]);
-		break;
-
-	    case NEX_RET_STRING_HEAD:
-		RX_String_Flag = 1;
-		Nextion_RX_String_Callback(&Nextion_In_Buffer[1]);
-		break;
-
-	    case NEX_RET_NUMBER_HEAD:
-
-		RX_Number =  (Nextion_In_Buffer[4] << 24)
-			| (Nextion_In_Buffer[3] << 16)
-			| (Nextion_In_Buffer[2] << 8)
-			| (Nextion_In_Buffer[1] << 0);
-		RX_Number_Flag = 1;
-		Nextion_RX_Number_Callback(RX_Number);
-		break;
-
-	    case NEX_RET_CMD_FINISHED:
-		Command_Finished_Flag = 1;
-		break;
-	    default:
-		break;
-
+		Nextion_In_Buffer[rx_char_count] = rx_char;
+		rx_char_count++;
 		}
-	    memset(Nextion_In_Buffer, 0x00, NEXTION_IN_BUFF_SIZE); //reset buffer
+
+	    if (data_received)
+		{
+
+		data_received = 0;
+
+		switch (Nextion_In_Buffer[0])
+		    {
+		case NEX_RET_EVENT_TOUCH_HEAD:
+		    Touch_EVNT_Flag = 1;
+		    break;
+
+		case NEX_RET_CURRENT_PAGE_ID_HEAD:
+		    Nextion_RX_Page_ID_Callback(Nextion_In_Buffer[1]);
+		    break;
+
+		case NEX_RET_STRING_HEAD:
+		    Nextion_RX_String_Callback(&Nextion_In_Buffer[1]);
+		    break;
+
+		case NEX_RET_NUMBER_HEAD:
+		    rx_number = (Nextion_In_Buffer[4] << 24)
+			    | (Nextion_In_Buffer[3] << 16)
+			    | (Nextion_In_Buffer[2] << 8)
+			    | (Nextion_In_Buffer[1] << 0);
+		    Nextion_RX_Number_Callback(rx_number);
+		    break;
+
+		case NEX_RET_CMD_FINISHED:
+		    Nextion_CMD_Finished_Callback();
+		    break;
+		default:
+		    break;
+
+		    }
+		memset(Nextion_In_Buffer, 0x00, NEXTION_IN_BUFF_SIZE); //reset buffer
+		}
 	    }
+	}
+    }
+
+
+
+
+void Nextion_Loop()
+    {
+    if(Touch_EVNT_Flag)
+	{
+	Touch_EVNT_Flag = 0;
+    Nextion_Find_Object(Nextion_In_Buffer[1],
+	    Nextion_In_Buffer[2], Nextion_In_Buffer[3]);
 	}
     }
 
@@ -500,7 +469,7 @@ void Nextion_Get_Text(char *object_name)
  *
  */
 
-uint8_t Nextion_Get_Current_Page()
+void Nextion_Get_Current_Page()
     {
 
     char buf[10] =
@@ -514,5 +483,4 @@ uint8_t Nextion_Get_Current_Page()
 
     HAL_UART_Transmit(&huart1, (uint8_t*) &buf, strlen(buf), 50);
 
-    return 0;
     }

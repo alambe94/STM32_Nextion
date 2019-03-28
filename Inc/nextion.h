@@ -31,8 +31,7 @@ extern UART_HandleTypeDef huart1;
 uint8_t Nextion_Init();
 uint8_t Nextion_Add_Object(Nextion_Object_t* PTR);
 void    Nextion_Send_Command(const char* cmd);
-uint8_t Nextion_Command_Finished(uint32_t timeout);
-uint8_t Nextion_Get_Current_Page();
+void    Nextion_Get_Current_Page();
 
 
 void Nextion_Loop();
