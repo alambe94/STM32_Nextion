@@ -256,6 +256,7 @@ void Nextion_UART_RX_ISR()
 		    break;
 
 		case NEX_RET_CMD_FINISHED:
+		    CMD_Finished_Flag = 1;
 		    Nextion_CMD_Finished_Callback();
 		    break;
 		default:
