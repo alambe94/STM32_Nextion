@@ -46,11 +46,19 @@ char     Nextion_In_Buffer[NEXTION_IN_BUFF_SIZE];
 uint8_t  Touch_EVNT_Flag = 0;
 uint8_t  CMD_Finished_Flag = 0;
 
-/*********************ring buffer objects*******************/
+/*********************ring buffer stuff start*******************/
 #define       UART_RING_BUFFER_SIZE   128
 static char   UART_DMA_RX_Buffer[UART_RING_BUFFER_SIZE];
 static Ring_Buffer_t UART_Ring_Buffer_Handle;
-/*********************ring buffer objects*******************/
+
+extern UART_HandleTypeDef huart1;
+UART_HandleTypeDef* Nextion_UART = &huart1;
+
+/*data is written to buffer via uart DMA in background*/
+/* need to update Write_Index manually */
+#define     UPDATE_RING_BUFFER() (UART_Ring_Buffer_Handle.Write_Index = ( UART_RING_BUFFER_SIZE - (Nextion_UART->hdmarx->Instance->CNDTR)))
+
+/*********************ring buffer stuff stop*******************/
 
 uint8_t Nextion_Add_Object(Nextion_Object_t* PTR)
     {
@@ -74,8 +82,8 @@ uint8_t Nextion_Init()
     /***** Cube ********/
 
     Ring_Buffer_Init(&UART_Ring_Buffer_Handle, UART_DMA_RX_Buffer, UART_RING_BUFFER_SIZE);
-    HAL_UART_Receive_DMA(&huart1, (uint8_t*) UART_DMA_RX_Buffer, UART_RING_BUFFER_SIZE);
-    __HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE);
+    HAL_UART_Receive_DMA(Nextion_UART, (uint8_t*) UART_DMA_RX_Buffer, UART_RING_BUFFER_SIZE);
+    __HAL_UART_ENABLE_IT(Nextion_UART, UART_IT_IDLE);
 
     Nextion_Send_Command("");
     HAL_Delay(1);
@@ -118,7 +126,7 @@ void Nextion_Send_Command(const char* cmd)
 
     sprintf(buf, "%s%c%c%c", cmd, sps, sps, sps);
 
-    HAL_UART_Transmit(&huart1, (uint8_t*) &buf, strlen(buf), 50);
+    HAL_UART_Transmit(Nextion_UART, (uint8_t*) &buf, strlen(buf), 50);
 
     }
 
@@ -193,7 +201,7 @@ void Nextion_UART_RX_ISR()
     uint8_t data_received = 0;
     uint8_t rx_number = 0;
 
-    if (__HAL_UART_GET_IT_SOURCE(&huart1, UART_IT_IDLE))
+    if (__HAL_UART_GET_IT_SOURCE(Nextion_UART, UART_IT_IDLE))
 	{
 
 	/*
@@ -202,9 +210,12 @@ void Nextion_UART_RX_ISR()
 	 sequence: a read operation to USART_SR register followed by a read
 	 operation to USART_DR register.
 	 */
-	(void) __HAL_UART_GET_FLAG(&huart1, UART_FLAG_IDLE);
+	(void) __HAL_UART_GET_FLAG(Nextion_UART, UART_FLAG_IDLE);
 	(void) huart1.Instance->DR;
 
+	/*data is written to buffer via uart DMA in background*/
+	/* need to update Write_Index manually */
+	UPDATE_RING_BUFFER();
 
 	while (Ring_Buffer_Get_Count(&UART_Ring_Buffer_Handle))
 	    {
@@ -304,7 +315,7 @@ void Nextion_Set_Value(char *object_name, int16_t number)
 
     sprintf(buf, "%s.val=%i%c%c%c", object_name, number, sps, sps, sps);
 
-    HAL_UART_Transmit(&huart1, (uint8_t*) &buf, strlen(buf), 50);
+    HAL_UART_Transmit(Nextion_UART, (uint8_t*) &buf, strlen(buf), 50);
     }
 
 /*********************
@@ -323,7 +334,7 @@ void Nextion_Set_Value_Float(char *object_name, float number)
 
     sprintf(buf, "%s.txt=\"%.2f\"%c%c%c", object_name, number, sps, sps, sps);
 
-    HAL_UART_Transmit(&huart1, (uint8_t*) &buf, strlen(buf), 50);
+    HAL_UART_Transmit(Nextion_UART, (uint8_t*) &buf, strlen(buf), 50);
     }
 
 /*********************
@@ -344,7 +355,7 @@ void Nextion_Set_Text(char *object_name, char *buffer)
 
     sprintf(buf, "%s.txt=\"%s\"%c%c%c", object_name, buffer, sps, sps, sps);
 
-    HAL_UART_Transmit(&huart1, (uint8_t*) &buf, strlen(buf), 50);
+    HAL_UART_Transmit(Nextion_UART, (uint8_t*) &buf, strlen(buf), 50);
     }
 
 /*********************
@@ -365,11 +376,11 @@ void Nextion_Set_BCK_Colour(char *object_name, int colour)
 
     sprintf(buf, "%s.bco=%i%c%c%c", object_name, colour, sps, sps, sps);
 
-    HAL_UART_Transmit(&huart1, (uint8_t*) &buf, strlen(buf), 50);
+    HAL_UART_Transmit(Nextion_UART, (uint8_t*) &buf, strlen(buf), 50);
 
     sprintf(buf, "ref %s%c%c%c", object_name, sps, sps, sps);
 
-    HAL_UART_Transmit(&huart1, (uint8_t*) &buf, strlen(buf), 50);
+    HAL_UART_Transmit(Nextion_UART, (uint8_t*) &buf, strlen(buf), 50);
     }
 
 /*********************
@@ -397,7 +408,7 @@ void Nextion_Hide_Object(char *object_name, uint8_t hide)
 	sprintf(buf, "vis %s,1%c%c%c", object_name, sps, sps, sps);
 	}
 
-    HAL_UART_Transmit(&huart1, (uint8_t*) &buf, strlen(buf), 50);
+    HAL_UART_Transmit(Nextion_UART, (uint8_t*) &buf, strlen(buf), 50);
     }
 
 /*********************
@@ -425,7 +436,7 @@ void Nextion_Backlight_Brightness(uint8_t value, uint8_t overide)
 	sprintf(buf, "dim=%i%c%c%c", value, sps, sps, sps);
 	}
 
-    HAL_UART_Transmit(&huart1, (uint8_t*) &buf, strlen(buf), 50);
+    HAL_UART_Transmit(Nextion_UART, (uint8_t*) &buf, strlen(buf), 50);
     }
 
 /*********************
@@ -452,7 +463,7 @@ void Nextion_Baud_Rate(uint32_t baud, uint8_t overide)
 	sprintf(buf, "baud=%i%c%c%c", (int) baud, sps, sps, sps);
 	}
 
-    HAL_UART_Transmit(&huart1, (uint8_t*) &buf, strlen(buf), 50);
+    HAL_UART_Transmit(Nextion_UART, (uint8_t*) &buf, strlen(buf), 50);
     }
 
 void Nextion_Get_Text(char *object_name)
@@ -466,7 +477,7 @@ void Nextion_Get_Text(char *object_name)
 
     sprintf(buf, "get %s.txt%c%c%c", object_name, sps, sps, sps);
 
-    HAL_UART_Transmit(&huart1, (uint8_t*) &buf, strlen(buf), 50);
+    HAL_UART_Transmit(Nextion_UART, (uint8_t*) &buf, strlen(buf), 50);
     }
 
 /*********************
@@ -487,6 +498,6 @@ void Nextion_Get_Current_Page()
 
     sprintf(buf, "sendme%c%c%c", sps, sps, sps);
 
-    HAL_UART_Transmit(&huart1, (uint8_t*) &buf, strlen(buf), 50);
+    HAL_UART_Transmit(Nextion_UART, (uint8_t*) &buf, strlen(buf), 50);
 
     }
