@@ -46,7 +46,11 @@ char     Nextion_In_Buffer[NEXTION_IN_BUFF_SIZE];
 uint8_t  Touch_EVNT_Flag = 0;
 uint8_t  CMD_Finished_Flag = 0;
 
-
+/*********************ring buffer objects*******************/
+#define       UART_RING_BUFFER_SIZE   128
+static char   UART_DMA_RX_Buffer[UART_RING_BUFFER_SIZE];
+static Ring_Buffer_t UART_Ring_Buffer_Handle;
+/*********************ring buffer objects*******************/
 
 uint8_t Nextion_Add_Object(Nextion_Object_t* PTR)
     {
@@ -69,8 +73,8 @@ uint8_t Nextion_Init()
 
     /***** Cube ********/
 
-    Ring_Buffer_Init(&huart1);
-
+    Ring_Buffer_Init(&UART_Ring_Buffer_Handle, UART_DMA_RX_Buffer, UART_RING_BUFFER_SIZE);
+    HAL_UART_Receive_DMA(&huart1, (uint8_t*) UART_DMA_RX_Buffer, UART_RING_BUFFER_SIZE);
     __HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE);
 
     Nextion_Send_Command("");
@@ -184,8 +188,8 @@ extern void Nextion_CMD_Finished_Callback();
 void Nextion_UART_RX_ISR()
     {
 
-    static uint8_t rx_char_count = 0;
-    uint8_t rx_char = 0;
+    static  uint8_t rx_char_count = 0;
+    char    rx_char = 0;
     uint8_t data_received = 0;
     uint8_t rx_number = 0;
 
@@ -202,18 +206,18 @@ void Nextion_UART_RX_ISR()
 	(void) huart1.Instance->DR;
 
 
-	while (Ring_Buffer_Get_Count())
+	while (Ring_Buffer_Get_Count(&UART_Ring_Buffer_Handle))
 	    {
 
-	    Ring_Buffer_Get_Char(&rx_char);
+	    Ring_Buffer_Get_Char(&UART_Ring_Buffer_Handle, &rx_char);
 
 	    if (rx_char == 0xFF)
 		{
-		Ring_Buffer_Get_Char(&rx_char);
+		Ring_Buffer_Get_Char(& UART_Ring_Buffer_Handle, &rx_char);
 		    {
 		    if (rx_char == 0xFF)
 			{
-			Ring_Buffer_Get_Char(&rx_char);
+			Ring_Buffer_Get_Char(&UART_Ring_Buffer_Handle, &rx_char);
 			if (rx_char == 0xFF)
 			    {
 			    rx_char_count = 0;
@@ -236,6 +240,7 @@ void Nextion_UART_RX_ISR()
 		switch (Nextion_In_Buffer[0])
 		    {
 		case NEX_RET_EVENT_TOUCH_HEAD:
+		    // Defer ISR to main loop
 		    Touch_EVNT_Flag = 1;
 		    break;
 
