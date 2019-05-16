@@ -4913,16 +4913,16 @@ void Nextion_UART_RX_ISR()
     uint8_t data_received = 0;
     uint8_t rx_number = 0;
 
-    if (__HAL_UART_GET_IT_SOURCE(Nextion_UART, UART_IT_IDLE))
+    if (__HAL_UART_GET_FLAG(Nextion_UART, UART_FLAG_IDLE))
  8002434:	4b34      	ldr	r3, [pc, #208]	; (8002508 <Nextion_UART_RX_ISR+0xd8>)
     {
  8002436:	b082      	sub	sp, #8
     char    rx_char = 0;
  8002438:	f88d 2007 	strb.w	r2, [sp, #7]
-    if (__HAL_UART_GET_IT_SOURCE(Nextion_UART, UART_IT_IDLE))
+    if (__HAL_UART_GET_FLAG(Nextion_UART, UART_FLAG_IDLE))
  800243c:	681a      	ldr	r2, [r3, #0]
  800243e:	6813      	ldr	r3, [r2, #0]
- 8002440:	68d9      	ldr	r1, [r3, #12]
+ 8002440:	6819      	ldr	r1, [r3, #0]
  8002442:	06c9      	lsls	r1, r1, #27
  8002444:	d522      	bpl.n	800248c <Nextion_UART_RX_ISR+0x5c>
 	(void) __HAL_UART_GET_FLAG(Nextion_UART, UART_FLAG_IDLE);

@@ -203,7 +203,7 @@ void Nextion_UART_RX_ISR()
     uint8_t data_received = 0;
     uint8_t rx_number = 0;
 
-    if (__HAL_UART_GET_IT_SOURCE(Nextion_UART, UART_IT_IDLE))
+    if (__HAL_UART_GET_FLAG(Nextion_UART, UART_FLAG_IDLE))
 	{
 
 	/*
