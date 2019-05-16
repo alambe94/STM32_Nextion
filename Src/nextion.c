@@ -82,7 +82,9 @@ uint8_t Nextion_Init()
     /***** Cube ********/
 
     Ring_Buffer_Init(&UART_Ring_Buffer_Handle, UART_DMA_RX_Buffer, UART_RING_BUFFER_SIZE);
+
     HAL_UART_Receive_DMA(Nextion_UART, (uint8_t*) UART_DMA_RX_Buffer, UART_RING_BUFFER_SIZE);
+
     __HAL_UART_ENABLE_IT(Nextion_UART, UART_IT_IDLE);
 
     Nextion_Send_Command("");
