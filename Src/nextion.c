@@ -43,8 +43,8 @@ static uint16_t Nextion_Object_Count = 0;
 #define  NEXTION_IN_BUFF_SIZE 20
 char     Nextion_In_Buffer[NEXTION_IN_BUFF_SIZE];
 
-uint8_t  Touch_EVNT_Flag = 0;
-uint8_t  CMD_Finished_Flag = 0;
+volatile uint8_t  Idle_Interrupt_Flag = 0;
+volatile uint8_t  CMD_Finished_Flag = 0;
 
 /*********************ring buffer stuff start*******************/
 #define       UART_RING_BUFFER_SIZE   128
@@ -71,10 +71,38 @@ uint8_t Nextion_Add_Object(Nextion_Object_t* PTR)
     return 0;
     }
 
+uint8_t Nextion_Wait_CMD()
+    {
+    uint32_t timeout = 0xFFFF;
+    CMD_Finished_Flag = 0;
+    uint8_t xreturn = NEXTION_ERR;
+
+    while (!Idle_Interrupt_Flag && --timeout)
+	{
+	}
+    if (timeout)
+	{
+
+	Nextion_Loop();
+
+	if (CMD_Finished_Flag)
+	    {
+	    CMD_Finished_Flag = 0;
+	    xreturn = NEXTION_OK;
+	    }
+	else
+	    {
+	    xreturn = NEXTION_ERR;
+	    }
+	}
+
+    return xreturn;
+
+    }
+
 uint8_t Nextion_Init()
     {
 
-    uint32_t timeout = 0xFFFF;
 
 
     /*Init Serial Port */
@@ -89,27 +117,23 @@ uint8_t Nextion_Init()
 
     Nextion_Send_Command("");
     HAL_Delay(1);
+
     CMD_Finished_Flag = 0;
     Nextion_Send_Command("bkcmd=1");
-    while (!CMD_Finished_Flag && --timeout)
+
+    if (Nextion_Wait_CMD())
 	{
-	}
-    if(!timeout)
-	{
-	return NEXTION_ERR;
+
+	Nextion_Send_Command("page 0");
+
+	if (Nextion_Wait_CMD())
+	    {
+	    return NEXTION_OK;
+	    }
 	}
 
+    return NEXTION_ERR;
 
-    CMD_Finished_Flag = 0;
-    Nextion_Send_Command("page 0");
-    while (!CMD_Finished_Flag && --timeout)
-	{
-	}
-    if(!timeout)
-	{
-	return NEXTION_ERR;
-	}
-    return NEXTION_OK;
     }
 
 /*
@@ -172,12 +196,16 @@ void Nextion_Find_Object(uint8_t pid, uint8_t cid, uint8_t event)
  */
 extern void Nextion_RX_Page_ID_Callback(uint8_t Page_ID);
 
+
+
 /*********** called when Nextion send string ***********
  *
  *
  *  defined externally
  */
 extern void Nextion_RX_String_Callback(const char* str);
+
+
 
 /*********** called when Nextion send number ***********
  *
@@ -198,22 +226,32 @@ extern void Nextion_CMD_Finished_Callback();
 void Nextion_UART_RX_ISR()
     {
 
-    static  uint8_t rx_char_count = 0;
-    char    rx_char = 0;
-    uint8_t data_received = 0;
-    uint8_t rx_number = 0;
-
     if (__HAL_UART_GET_FLAG(Nextion_UART, UART_FLAG_IDLE))
 	{
 
-	/*
-	 PE (Parity error), FE (Framing error), NE (Noise error), ORE (Overrun
-	 error) and IDLE (Idle line detected) flags are cleared by software
-	 sequence: a read operation to USART_SR register followed by a read
-	 operation to USART_DR register.
-	 */
-	(void) __HAL_UART_GET_FLAG(Nextion_UART, UART_FLAG_IDLE);
-	(void) huart1.Instance->DR;
+	Idle_Interrupt_Flag = 1;
+
+	/*clear idle interrupt*/
+	Nextion_UART->Instance->SR;
+	Nextion_UART->Instance->DR;
+
+	}
+    }
+
+
+
+void Nextion_Loop()
+    {
+
+    static uint8_t rx_char_count = 0;
+    char rx_char = 0;
+    uint8_t data_received = 0;
+    uint8_t rx_number = 0;
+
+    if (Idle_Interrupt_Flag)
+	{
+
+	Idle_Interrupt_Flag = 0;
 
 	/*data is written to buffer via uart DMA in background*/
 	/* need to update Write_Index manually */
@@ -226,11 +264,12 @@ void Nextion_UART_RX_ISR()
 
 	    if (rx_char == 0xFF)
 		{
-		Ring_Buffer_Get_Char(& UART_Ring_Buffer_Handle, &rx_char);
+		Ring_Buffer_Get_Char(&UART_Ring_Buffer_Handle, &rx_char);
 		    {
 		    if (rx_char == 0xFF)
 			{
-			Ring_Buffer_Get_Char(&UART_Ring_Buffer_Handle, &rx_char);
+			Ring_Buffer_Get_Char(&UART_Ring_Buffer_Handle,
+				&rx_char);
 			if (rx_char == 0xFF)
 			    {
 			    rx_char_count = 0;
@@ -253,8 +292,8 @@ void Nextion_UART_RX_ISR()
 		switch (Nextion_In_Buffer[0])
 		    {
 		case NEX_RET_EVENT_TOUCH_HEAD:
-		    // Defer ISR to main loop
-		    Touch_EVNT_Flag = 1;
+		    Nextion_Find_Object(Nextion_In_Buffer[1],
+			    Nextion_In_Buffer[2], Nextion_In_Buffer[3]);
 		    break;
 
 		case NEX_RET_CURRENT_PAGE_ID_HEAD:
@@ -284,19 +323,6 @@ void Nextion_UART_RX_ISR()
 		memset(Nextion_In_Buffer, 0x00, NEXTION_IN_BUFF_SIZE); //reset buffer
 		}
 	    }
-	}
-    }
-
-
-
-
-void Nextion_Loop()
-    {
-    if(Touch_EVNT_Flag)
-	{
-	Touch_EVNT_Flag = 0;
-    Nextion_Find_Object(Nextion_In_Buffer[1],
-	    Nextion_In_Buffer[2], Nextion_In_Buffer[3]);
 	}
     }
 
@@ -449,7 +475,7 @@ void Nextion_Backlight_Brightness(uint8_t value, uint8_t overide)
 void Nextion_Baud_Rate(uint32_t baud, uint8_t overide)
     {
 
-    char buf[10] =
+    char buf[20] =
 	{
 	0
 	};
