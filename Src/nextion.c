@@ -1,10 +1,14 @@
-#include "nextion.h"
-
+/** standard includes */
 #include <stdio.h>
 
-#define MAX_NEXTION_OBJECTS (50)
+/** ST includes */
+#include "usart.h"
 
-#define NEXTION_LOOP_SCAN_TICK (10) //ms dealay after first char is receiver
+/** app includes */
+#include "nextion.h"
+
+
+#define MAX_NEXTION_OBJECTS (50)
 
 #define NEX_RET_CMD_FINISHED (0x01)
 #define NEX_RET_EVENT_LAUNCHED (0x88)
@@ -45,15 +49,14 @@ volatile uint8_t CMD_Finished_Flag = 0;
 static char UART_DMA_RX_Buffer[UART_RING_BUFFER_SIZE];
 static Ring_Buffer_t UART_Ring_Buffer_Handle;
 
-extern UART_HandleTypeDef huart1;
 UART_HandleTypeDef *Nextion_UART = &huart1;
 /*********************ring buffer stuff end*******************/
 
-uint8_t Nextion_Add_Object(Nextion_Object_t *PTR)
+uint8_t Nextion_Add_Object(Nextion_Object_t *handle)
 {
 	if (Nextion_Object_Count < MAX_NEXTION_OBJECTS)
 	{
-		Nextion_Object_List[Nextion_Object_Count] = PTR;
+		Nextion_Object_List[Nextion_Object_Count] = handle;
 		Nextion_Object_Count++;
 		return 1;
 	}
@@ -71,7 +74,6 @@ uint8_t Nextion_Wait_CMD()
 	}
 	if (timeout)
 	{
-
 		Nextion_Loop();
 
 		if (CMD_Finished_Flag)
@@ -90,7 +92,6 @@ uint8_t Nextion_Wait_CMD()
 
 uint8_t Nextion_Init()
 {
-
 	/*Init Serial Port */
 
 	/***** Cube ********/
@@ -122,11 +123,12 @@ uint8_t Nextion_Init()
 
 void Nextion_Send_Command(const char *cmd)
 {
-	uint8_t delimiter[3] = {0xFF, 0xFF, 0xFF};
-	uint8_t len = strlen(cmd);
+    char buf[30] = "";
+    char sps = 0xFF;
 
-	HAL_UART_Transmit(Nextion_UART, (uint8_t *)cmd, len, len * 10);
-	HAL_UART_Transmit(Nextion_UART, delimiter, 3, 10);
+    sprintf(buf, "%s%c%c%c", cmd, sps, sps, sps);
+
+    HAL_UART_Transmit(Nextion_UART, (uint8_t*) &buf, strlen(buf), 50);
 }
 
 void Nextion_Find_Object(uint8_t pid, uint8_t cid, uint8_t event)

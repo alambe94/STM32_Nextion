@@ -19,8 +19,6 @@ typedef struct Nextion_Object_t
 
 } Nextion_Object_t;
 
-extern UART_HandleTypeDef huart1;
-
 uint8_t Nextion_Init();
 uint8_t Nextion_Add_Object(Nextion_Object_t *PTR);
 void Nextion_Send_Command(const char *cmd);
@@ -29,6 +27,7 @@ void Nextion_Get_Current_Page();
 void Nextion_Loop();
 
 void Nextion_Set_Text(char *object_name, char *buffer);
+void Nextion_Set_Value(char *object_name, int16_t number);
 void Nextion_Set_Value_Float(char *object_name, float number);
 void Nextion_Set_BCK_Colour(char *object_name, int colour);
 void Nextion_Hide_Object(char *object_name, uint8_t hide);
